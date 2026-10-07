@@ -1,0 +1,219 @@
+kind: sim2real-transfer
+version: 3
+# The manifest: which algorithms, against which workloads, on which baseline.
+# baselines/ is the system under test, workloads/ is the traffic,
+# measurement.yaml is the instrument, and this file is the cross product.
+
+scenario: lora2
+
+component:
+  repo: llm-d-router
+  kind: EndpointPickerConfig  # a scheduling Filter plus request-control hooks; README.md "Required shape"
+  ref: v0.11.0  # a5cbe600ebade00cf3e9885beaf2bfacddeabce1; the pin every target citation in algorithms/ was audited against
+  base_image:
+    hub: ghcr.io/llm-d  # llm-d-router/Makefile:26 IMAGE_REGISTRY
+    name: llm-d-router-endpoint-picker  # llm-d-router/Makefile:21 EPP_IMAGE_NAME
+  build:
+    # Discovered from the llm-d-router submodule at v0.11.0. It was not derived from
+    # algorithm imports.
+    #
+    # AGENTS.md:5 names `make presubmit` as the pre-merge gate, but it cannot be used
+    # here as written:
+    #   - Makefile:221 expands it to branch/commit-signature checks, go-mod-check,
+    #     format, lint, vulncheck, check-latest-tags-strict and
+    #     verify-boilerplate. It runs no tests.
+    #   - `format` rewrites source.
+    #   - Every make target shells into a builder container (Makefile:150
+    #     BUILDER_RUN), and this host has no container runtime.
+    # So the underlying tools are invoked directly.
+    #
+    # RACE DETECTOR NOT RUNNABLE ON THIS HOST. The plugin shares state across
+    # goroutines by construction: Filter on the request path reads the residency
+    # mirror that PreRequest / ResponseHeader / ResponseBody mutate. -race is
+    # therefore the flag this plugin most needs. It requires cgo, and on this host
+    # (go 1.27.1, MacOSX27.0 SDK) no cgo test binary links: the Security.tbd
+    # "unknown architecture" error, verified 2026-10-07. The entries below run with
+    # CGO_ENABLED=0 so the gate can pass here. The race test is listed, commented
+    # out, at the end. Enable it on any host whose toolchain links cgo.
+    commands:
+      # Compiles and vets everything the plugin and its registration can touch.
+      - CGO_ENABLED=0 go vet ./pkg/epp/... ./cmd/epp/...
+      # The new plugin's own tests. -count=1 so a cached PASS can never stand in
+      # for a run of the code under review.
+      - CGO_ENABLED=0 go test -count=1 ./pkg/epp/framework/plugins/scheduling/filter/routetoholder/...
+      # Blast radius: the scheduler that runs filters, request control that runs
+      # the hooks, the plugin tree, the interfaces the plugin implements, and the
+      # runner that registers it.
+      #
+      # NARROWED from upstream's epp_TEST_PACKAGES (Makefile:164). Excluded:
+      #   - pkg/epp/framework/interface/requesthandling. It fails at v0.11.0 on
+      #     this host's go 1.27.1, before any change:
+      #     TestGenerateRequest_UnmarshalJSON/invalid_placeholder_preserves_error_field
+      #     asserts on an encoding/json error string that differs from the repo's
+      #     declared go 1.26.6. That is inherited breakage, unrelated to this
+      #     plugin. Verified 2026-10-07.
+      #   - Generated clients, sidecar, coordinator, kvcache and kvevents. These
+      #     are unrelated subsystems.
+      # With these exclusions the remaining scope is green at v0.11.0.
+      - >-
+        CGO_ENABLED=0 go test -count=1
+        ./pkg/epp/scheduling/...
+        ./pkg/epp/requestcontrol/...
+        ./pkg/epp/framework/plugins/...
+        ./pkg/epp/framework/interface/scheduling/...
+        ./pkg/epp/framework/interface/requestcontrol/...
+        ./pkg/epp/framework/interface/datalayer/...
+        ./cmd/epp/...
+      # AGENTS.md:43 makes `make lint` authoritative. --new matches presubmit's own
+      # LINT_NEW_ONLY=true (Makefile:220), so pre-existing debt elsewhere cannot
+      # exhaust the writer's retries. 0 issues at v0.11.0 (verified 2026-10-07).
+      - golangci-lint run --config=./.golangci.yml --new ./pkg/epp/... ./cmd/epp/...
+      # The EPP binary links with the plugin registered.
+      - CGO_ENABLED=0 go build ./cmd/epp/...
+      # Enable where cgo links. This is the check that catches an unguarded mirror:
+      # - go test -count=1 -race ./pkg/epp/framework/plugins/scheduling/filter/routetoholder/...
+
+algorithms:
+  - name: routetoholder
+    source: algorithms/routetoholder.go
+    defaults: baseline
+
+baselines:
+  - name: baseline
+    scenario: baselines/baseline.yaml
+
+workloads:
+  - workloads/granite-9adapter.workload.yaml
+
+measurement: measurement.yaml
+
+context:
+  text: |
+    Route-to-holder LoRA routing: BLIS's route-to-holder policy
+    (atantawi/inference-sim c9fb6038, tag lora-seams-2026-08-22), ported to
+    llm-d-router v0.11.0.
+
+    THE DECISION. For a request carrying adapter a, collect the pods whose GPU
+    slots hold a, in input order (sim/routing.go:277-282).
+    - If at least one exists, restrict the candidate set to them, then run the
+      ordinary weighted scorers and picker over that set (sim/routing.go:283-296).
+    - If none exists, or the request is for the base model, run them over every
+      pod (sim/routing.go:299-300).
+    The rule adds no score of its own (sim/routing.go:375-382). Whenever a holder
+    exists, the pick is a holder. Every scorer's min-max range is taken over the
+    restricted set only. The target matches this because filters run before
+    scorers.
+
+    REQUIRED SHAPE: a hard restriction of the candidate set, not a score.
+
+    The simulator reads residency exactly and live, pinned to Immediate
+    (sim/cluster/cluster.go:443-448). The target has no residency signal, so the
+    port keeps a per-pod MIRROR of the simulator's resident set:
+    - capacity-bounded LRU with reference-counted pins;
+    - eviction of the least-recently-used unpinned adapter when a load starts
+      (sim/simulator.go:1073-1094);
+    - residency only once the load completes (sim/simulator.go:1165-1191);
+    - touch and pin at batch admission (sim/simulator.go:950-959), unpin at
+      termination (sim/simulator.go:975-981).
+    The mirror is driven by requests this plugin routed. It is confirmed by a
+    successful response from the pod, or by the adapter appearing in that pod's
+    ActiveModels. algorithms/routetoholder.go states the full state machine and
+    is authoritative.
+
+    ELIMINATIONS (settled; they hold even if the placement below fails)
+    - A Scorer cannot carry the decision. Scores combine as a weighted sum
+      (pkg/epp/scheduling/scheduler_profile.go:236-260), so a holder preference
+      only biases the pick. lora-affinity-scorer is exactly that weaker form
+      (pkg/epp/framework/plugins/scheduling/scorer/loraaffinity/lora_affinity.go:84-117).
+    - label-selector-filter ignores the request
+      (pkg/epp/framework/plugins/scheduling/filter/bylabel/selector.go:81-91), so
+      it cannot vary by adapter.
+    - WaitingModels is not residency: by its own field comment, vLLM fills it with
+      the same adapters as ActiveModels
+      (pkg/epp/framework/interface/datalayer/metrics.go:29-32).
+    - ActiveModels alone is a SUBSET of the holders. It is running adapters only
+      (pkg/epp/framework/plugins/datalayer/extractor/metrics/extractor.go:249-256),
+      so idle resident adapters are absent.
+    - The /v1/models listing is a SUPERSET of the holders. It lists every
+      registered adapter, including ones evicted from GPU slots.
+    - No core modification is needed.
+
+    PLACEMENT (candidate). ONE plugin registration, ONE Go type, plugin type
+    "route-to-holder-filter". It implements:
+    - scheduling Filter
+      (pkg/epp/framework/interface/scheduling/plugins.go:60-63)
+    - requestcontrol PreRequest
+      (pkg/epp/framework/interface/requestcontrol/plugins.go:70-73)
+    - ResponseHeaderProcessor (:78-81 of the same file)
+    - ResponseBodyProcessor (:98-101 of the same file)
+    The four method names are distinct, so one type can implement all four.
+    Every configured plugin is added to request control under each request-control
+    interface it implements (cmd/epp/runner/runner.go:799,
+    pkg/epp/requestcontrol/request_control_config.go:108-134). Register it beside
+    lora-affinity-scorer's registration (cmd/epp/runner/runner.go:618).
+    The method sets were read but nothing was compiled. If this placement does not
+    hold, the eliminations still do; search within them, not among scorers.
+    The treatment profile places the filter first, then the stock queue-scorer 2,
+    kv-cache-utilization-scorer 2 and prefix-cache-scorer 3, and max-score-picker.
+    So the arm differs from baseline only by the filter (config.md section 8).
+    Plugin parameters: fallbackSlots 3 (equal to --max-loras), and baseModels
+    ["ibm-granite/granite-3.3-2b-instruct"].
+    The mirror is shared across goroutines: Filter reads it on the request path
+    while the response hooks mutate it. Every access must hold one mutex.
+
+    DECLARED DEGRADATION (D1-D13). Each is stated in full, with its direction of
+    bias, in the header of algorithms/routetoholder.go. In brief:
+    - D1: traffic this replica did not route is invisible, so holding is
+      overstated. Run ONE EPP replica.
+    - D2, D11: loads are confirmed late, by a successful response header or a
+      sampled ActiveModels refresh, so holding is understated just after a load.
+      Streaming is forced on only by --record-itl.
+    - D3, D4: eviction is committed at dispatch, pins are taken at dispatch, and
+      the mirror touches at dispatch, response and refresh. Victim choice can
+      differ from the simulator's when queues are non-empty.
+    - D5: the mirror assumes vLLM GPU slots are LRU and running_lora_adapters
+      means running. Both were checked at vLLM v0.7.1 only and are CONFIRM against
+      the deployed image (config.md section 4).
+    - D6: slot count comes from MaxActiveModels, falling back to fallbackSlots
+      until vLLM emits the LoRA metric.
+    - D7: the stock scorer weights differ from the simulator's 2:1:1, and the
+      prefix scorer is approximate. Expected neutral on these synthetic prompts.
+    - D8: ties rotate round-robin in max-score-picker; the simulator breaks them at
+      random.
+    - D9: the utilization detector filter runs after this one and narrows within
+      the holders.
+    - D10: the base model is recognized by parameter.
+    - D12: the mirror can briefly exceed capacity when every slot is pinned.
+    - D13: a pending load is cleared when its request aborts.
+
+    STATUS. No measurement backs this rule against another routing rule, and no
+    simulation uses this cell. The expected effect is a hypothesis with no margin:
+    fewer adapter loads and a lower per-adapter TTFT tail than baseline
+    (README.md "Pre-registered expectation").
+  files:
+    - README.md
+    - config.md
+    - inputs/granite-9adapter.lora-config.yaml
+
+defaults:
+  # These four ship DISABLED. Each is copied into baselines/defaults/ so there is
+  # something to enable rather than reinvent. Enabling one means deleting its line.
+  disable:
+    - nic-exclusion
+    - pod-capabilities
+    - preserve-request-id
+    - rdma-device-reservation
+  # Available fragments (filename stems in baselines/defaults/):
+  #   - epp-verbosity
+  #   - epponly
+  #   - externally-managed-gateway
+  #   - lora-serving                (experiment-owned; inputs/lora-serving.yaml. Disabling it turns this into a base-model-only deployment)
+  #   - model-pvc-size
+  #   - nic-exclusion               (ships disabled)
+  #   - pod-capabilities            (ships disabled)
+  #   - preserve-request-id         (ships disabled)
+  #   - rdma-device-reservation     (ships disabled)
+  #   - routing-proxy-resources
+  #   - tokenizer-sidecar
+  #   - vllm-keepalive
+  #   - vllm-logging

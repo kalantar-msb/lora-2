@@ -1,0 +1,31 @@
+scenario:
+- name: lora2
+
+  model:
+    name: ibm-granite/granite-3.3-2b-instruct  # config.md row "Model"
+    shortName: ibm-granite-granite-3.3-2b-instruct  # derived from model name
+    path: models/ibm-granite/granite-3.3-2b-instruct  # derived from model name
+    huggingfaceId: ibm-granite/granite-3.3-2b-instruct  # config.md row "Model"
+    size: 1Ti  # default estimate
+    maxModelLen: 8192  # config.md row "max_model_len"
+    blockSize: 16  # config.md row "block_size"
+    gpuMemoryUtilization: 0.9  # config.md row "gpu_memory_utilization"
+
+  decode:
+    replicas: 2  # config.md row "Number of vLLM pods"
+    acceleratorType:
+      labelKey: nvidia.com/gpu.product
+      labelValue: NVIDIA-H100-80GB-HBM3  # lookup: HARDWARE_LABELS["H100_SXM_80GB"]
+    vllm:
+      additionalFlags:
+      - "--max-num-seqs=64"  # config.md row "max_num_seqs"
+      - "--no-enable-prefix-caching"  # config.md row "--no-enable-prefix-caching"
+      - "--dtype=bfloat16"  # config.md row "dtype"
+    resources:
+      limits:
+        memory: '32Gi'  # operator-stated
+        cpu: '8'  # operator-stated
+      requests:
+        memory: '16Gi'  # operator-stated
+        cpu: '4'  # operator-stated
+

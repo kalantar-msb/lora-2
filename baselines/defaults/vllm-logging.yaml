@@ -1,0 +1,22 @@
+# Turns the uvicorn access log back on, giving one line per HTTP request in the
+# model-server log.
+#
+# vLLM enables that log by default and llm-d-benchmark disables it on both roles.
+# Without it the engine log shows that something was rejected but not which
+# requests, on which pod, or how often -- which is most of what you want when
+# requests start failing.
+#
+# Set it through this typed `vllmCommon.flags` key rather than an
+# `additionalFlags` entry: the typed key is read per-role, so it covers decode and
+# prefill together.
+#
+# Per-request logging is not free at high QPS, so this is a bring-up diagnostic you
+# may want off for a measurement run -- add `vllm-logging` to transfer.yaml's
+# `defaults.disable`.
+#
+# scenario[0].name is realigned to the experiment baseline at merge time.
+scenario:
+- name: defaults
+  vllmCommon:
+    flags:
+      disableUvicornAccessLog: false

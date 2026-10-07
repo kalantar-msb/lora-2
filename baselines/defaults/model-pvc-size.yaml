@@ -1,0 +1,20 @@
+# Sizes the shared model PVC large enough for a 70B-class model.
+#
+# The framework default of 300Gi is smaller than what the download job actually
+# writes: it fetches the whole model repo, so a 70B model arrives as its
+# safetensors plus the original .pth files vLLM never reads.
+#
+# 1Ti is not universally right -- it is generous for a small model. Lower it, or
+# add `model-pvc-size` to transfer.yaml's `defaults.disable` to fall back to the
+# framework default.
+#
+# This only sizes a PVC that does not exist yet. An existing model-pvc is never
+# resized; standup fails with "existing PVC is too small" instead. In a namespace
+# that already has one, patch the PVC by hand first.
+#
+# scenario[0].name is realigned to the experiment baseline at merge time.
+scenario:
+- name: defaults
+  storage:
+    modelPvc:
+      size: 1Ti

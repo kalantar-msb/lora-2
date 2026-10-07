@@ -1,0 +1,100 @@
+# Makes the generated baseline a LoRA deployment.
+#
+# `generate_from_config.py` has no aliases for LoRA flags, no way to mount a volume
+# and no way to add an init container, so none of this can come from config.md. It is
+# applied here instead: `sim2real assemble` merges every fragment in
+# baselines/defaults/ onto the baseline, `decode.vllm.additionalFlags` merges by flag
+# name, and `volumes` / `volumeMounts` / `initContainers` merge by entry name.
+#
+# Disable by adding `lora-serving` to transfer.yaml's `defaults.disable` — which also
+# turns this bundle back into a base-model-only deployment, a useful control.
+#
+# Adapters are resolved on first reference by vLLM's filesystem resolver rather than
+# preloaded with --lora-modules. Two reasons: --lora-modules takes multiple values and
+# its argv handling through this scenario schema is unverified, and lazy resolution
+# makes the first cold load per adapter observable instead of hiding it in startup.
+#
+# scenario[0].name is realigned to the experiment baseline at merge time.
+scenario:
+- name: defaults
+
+  vllmCommon:
+    volumes:
+      - name: adapters
+        type: emptyDir
+        emptyDir: {}
+    volumeMounts:
+      - name: adapters
+        mountPath: /adapters
+
+  decode:
+    vllm:
+      additionalFlags:
+        - "--enable-lora"
+        # 3 slots x 2 replicas = 6, against 9 adapters. Must stay under the adapter
+        # count or there is no eviction and the arms cannot differ.
+        - "--max-loras=3"
+        # The highest rank in the set. Every slot is sized for this, out of the KV budget.
+        - "--max-lora-rank=32"
+        # Host-memory cache: an eviction then costs an activation, not a disk read.
+        - "--max-cpu-loras=6"
+
+    extraEnvVars:
+      - name: VLLM_ALLOW_RUNTIME_LORA_UPDATING
+        value: "true"
+      - name: VLLM_PLUGINS
+        value: "lora_filesystem_resolver"
+      - name: VLLM_LORA_RESOLVER_CACHE_DIR
+        value: "/adapters"
+
+    # rag-intrinsics-lib is laid out <task>/lora/<base-model>/, so the nine leaf
+    # directories are flattened to /adapters/<task>/ — the name each request sends as
+    # its `model`. alpine/git ships git-lfs and runs `git lfs install`, so the clone
+    # pulls real weights rather than LFS pointers.
+    #
+    # Each copied adapter_config.json also has its `base_model_name_or_path` rewritten
+    # to BASE_MODEL_PATH. The adapters ship it as the HuggingFace id, but vLLM's
+    # filesystem resolver matches it against `model_config.model` — the --model value,
+    # which is the model-cache path here, not `served_model_name`
+    # (vllm/entrypoints/openai/models/serving.py, resolve_lora). On a mismatch the
+    # resolver returns None, and _check_model discards its 404 and substitutes
+    # "The model `<name>` does not exist" — so without this rewrite every adapter
+    # request 404s with a message that does not mention LoRA at all.
+    #
+    # BASE_MODEL_PATH therefore has to track the chart's model mount and the scenario's
+    # `model.path`. If either changes, resolution breaks again the same silent way,
+    # which is why the rewrite is verified below rather than assumed.
+    initContainers:
+      - name: pull-lora
+        image: alpine/git
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            set -eu
+            BASE_MODEL_PATH="/model-cache/models/ibm-granite/granite-3.3-2b-instruct"
+            git clone --depth 1 \
+              https://huggingface.co/ibm-granite/rag-intrinsics-lib /tmp/lib
+            for a in answerability citations uncertainty context_relevance \
+                     hallucination_detection query_rewrite \
+                     answer_relevance_classifier requirement_check \
+                     answer_relevance_rewriter; do
+              src="/tmp/lib/${a}/lora/granite-3.3-2b-instruct"
+              test -f "${src}/adapter_config.json" || { echo "missing: ${src}"; exit 1; }
+              mkdir -p "/adapters/${a}"
+              cp -a "${src}/." "/adapters/${a}/"
+              cfg="/adapters/${a}/adapter_config.json"
+              sed -i \
+                "s#\"base_model_name_or_path\": \"[^\"]*\"#\"base_model_name_or_path\": \"${BASE_MODEL_PATH}\"#" \
+                "${cfg}"
+              grep -q "\"base_model_name_or_path\": \"${BASE_MODEL_PATH}\"" "${cfg}" \
+                || { echo "base_model_name_or_path rewrite failed: ${cfg}"; exit 1; }
+            done
+            ls -1 /adapters
+        volumeMounts:
+          - name: adapters
+            mountPath: /adapters
+        resources:
+          limits:
+            ephemeral-storage: "16Gi"
+          requests:
+            ephemeral-storage: "8Gi"

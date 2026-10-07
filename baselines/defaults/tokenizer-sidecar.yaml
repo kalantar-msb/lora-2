@@ -1,0 +1,40 @@
+# Runs a CPU-only vLLM "render" container in the EPP pod, so a token-producer
+# plugin's http://localhost:8000 has something answering it. That is what turns a
+# prompt into the token count the EPP needs to make a P/D decision.
+#
+# Only needed if your arms declare a token-producer plugin. If none do, add
+# `tokenizer-sidecar` to transfer.yaml's `defaults.disable`; leaving it on costs
+# an idle container in the EPP pod and nothing else.
+#
+# When it is needed and missing, the failure is silent rather than loud. With
+# nothing on port 8000 the token count comes back as 0 with no error, so a decider
+# comparing it against a threshold answers "no disaggregation" for every request.
+# The signature is a run with thousands of requests and zero prefill selections.
+#
+# Two settings below you may need to change:
+#
+#   HF_TOKEN  reads a secret named `hf-secret`. Point it at whatever your namespace
+#             actually has. A gated model repo makes this mandatory -- without a
+#             usable token the container cannot pull the tokenizer.
+#   HF_HOME   is /tmp/hf because the cache has to be writable by whatever UID the
+#             cluster assigns the container. If it is not writable the container
+#             crash-loops, which holds the EPP below ready and fails the whole run
+#             on a sidecar the model servers never needed.
+#
+# After deploy, `curl -s localhost:8000/v1/models` from inside the EPP pod should
+# succeed.
+#
+# scenario[0].name is realigned to the experiment baseline at merge time.
+scenario:
+- name: defaults
+  router:
+    tokenizer:
+      enabled: true
+      env:
+        - name: HF_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: hf-secret
+              key: HF_TOKEN
+        - name: HF_HOME
+          value: /tmp/hf

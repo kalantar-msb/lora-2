@@ -1,0 +1,19 @@
+# Gives the nixl routing-proxy sidecar an explicit CPU and memory request.
+#
+# The chart leaves its resources unset, so without this the proxy can be scheduled
+# with no real budget and gets squeezed on a busy node. It sits on the KV-transfer
+# path beside every model server, so that shows up as transfer latency.
+#
+# Not the same sidecar as epponly.yaml. That one sizes the Envoy container inside
+# the EPP pod; this one sizes the routing proxy beside each model server.
+# Different containers, different pods, both wanted.
+#
+# scenario[0].name is realigned to the experiment baseline at merge time.
+scenario:
+- name: defaults
+  routing:
+    proxy:
+      resources:
+        requests:
+          memory: 16Gi
+          cpu: 4

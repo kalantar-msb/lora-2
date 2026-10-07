@@ -1,0 +1,42 @@
+# DISABLED BY DEFAULT. Enable by removing `preserve-request-id` from
+# transfer.yaml's `defaults.disable`.
+#
+# Installs an Istio EnvoyFilter that makes the Gateway keep the caller's
+# request id instead of replacing it, so a request can be traced to the pod and
+# node that served it.
+#
+# WHY OFF BY DEFAULT: it selects a Kubernetes Gateway by label, and this bundle's
+# topology -- epponly with an externally-managed Gateway -- deploys no Gateway at
+# all, so the filter matches nothing. It also needs Istio CRDs present.
+#
+# It is the only fragment that ships free-form Kubernetes manifests
+# (`extraObjects`), which makes it the only one that can fail when applied rather
+# than just sit inert. Enable it only under an Istio-managed Gateway whose name
+# matches the selector below.
+#
+# scenario[0].name is realigned to the experiment baseline at merge time.
+scenario:
+- name: defaults
+  extraObjects:
+    - apiVersion: networking.istio.io/v1alpha3
+      kind: EnvoyFilter
+      metadata:
+        name: preserve-external-request-id
+      spec:
+        workloadSelector:
+          labels:
+            gateway.networking.k8s.io/gateway-name: infra-llmdbench-inference-gateway
+        configPatches:
+          - applyTo: NETWORK_FILTER
+            match:
+              context: GATEWAY
+              listener:
+                filterChain:
+                  filter:
+                    name: envoy.filters.network.http_connection_manager
+            patch:
+              operation: MERGE
+              value:
+                typed_config:
+                  "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                  preserve_external_request_id: true

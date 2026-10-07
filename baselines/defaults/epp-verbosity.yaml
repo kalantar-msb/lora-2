@@ -1,0 +1,23 @@
+# Raises the EPP's log verbosity so its routing decisions are visible.
+#
+# The framework leaves the EPP near-silent. The scale is DEFAULT 2, VERBOSE 3,
+# DEBUG 4, TRACE 5; this sets 3.
+#
+# 3 is a floor, not a taste. /sim2real-check reads `objectiveKey` and `priority`
+# off the EPP's "Request handled" lines, and those only appear at 3. Below that the
+# check has nothing to read and reports INAPPLICABLE.
+#
+# Chasing a prefill-selection problem, go to 4 -- that is where the P/D decider
+# explains itself. 5 turns on every TRACE site at once, usually more log volume
+# than a run can carry, so use it only for a call site you have already found.
+#
+# The EPP sits in the request path, so this costs CPU per request as well as disk.
+# It is a fragment rather than baseline content so a measurement run can switch it
+# off with transfer.yaml's `defaults.disable`.
+#
+# scenario[0].name is realigned to the experiment baseline at merge time.
+scenario:
+- name: defaults
+  router:
+    epp:
+      verbosity: "3"

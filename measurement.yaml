@@ -1,0 +1,27 @@
+# blis observe protocol for this bundle. Bundle-scoped and constant:
+# holding it identical across cells is what makes cells comparable,
+# so per-cell variation is a threat to validity rather than a feature.
+#
+# timeout is the PER-REQUEST HTTP timeout, not a run cap.
+#
+# warmupRequests excludes the first N *dispatched* requests by global
+# index. For single-turn open-loop traffic that is an unbiased drop. For
+# closed-loop multi-turn replay it is NOT: the leading dispatches are the
+# opening rounds of the initial session pool, which under
+# context_growth: accumulate are the smallest-context, cheapest rounds —
+# excluding them biases inputs and latency rightward and leaves the first
+# pool-worth of sessions head-truncated while later ones stay intact. Set
+# 0 for trace replay and do cold-start exclusion in analysis, where
+# trace_data.csv's session_id and round_index make it exact and reversible.
+kind: measurement-protocol
+version: 1
+
+maxConcurrency: 10000  # source: config.md
+timeout: 1800  # source: config.md
+warmupRequests: 50  # source: config.md
+prewarmDuration: "60s"  # source: config.md
+detectors: "composite"  # source: config.md
+apiFormat: "completions"  # source: config.md
+recordItl: true  # source: config.md
+streaming: true  # source: sim2real-bootstrap default
+extraArgs: ""  # source: sim2real-bootstrap default

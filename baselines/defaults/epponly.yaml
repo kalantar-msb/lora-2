@@ -1,0 +1,39 @@
+# Runs the router with no Kubernetes Gateway: the EPP's own Envoy sidecar serves
+# HTTP directly and is the entire data plane. Sizes and configures that sidecar,
+# since under this topology every request goes through it.
+#
+# Not the same sidecar as routing-proxy-resources.yaml. That one sizes the nixl
+# routing proxy beside each model server; this one sizes the Envoy container inside
+# the EPP pod. Different containers, different pods, both wanted.
+#
+# `--concurrency 8` below is chosen to match `limits.cpu: "8"`. Change one and you
+# have to change the other, or Envoy's worker pool and its CPU budget disagree.
+#
+# Careful: `args` is a scalar list, so any later layer that sets
+# `router.proxy.args` replaces the whole list -- taking `--concurrency 8` with it
+# while the CPU limit stays behind. Set the args here, or set both keys in your
+# baseline. Never split them across layers.
+#
+# scenario[0].name is realigned to the experiment baseline at merge time.
+scenario:
+- name: defaults
+  gateway:
+    className: epponly
+  router:
+    proxy:
+      resources:
+        requests: {cpu: "4", memory: 8Gi}
+        limits: {cpu: "8", memory: 16Gi}
+      args:
+        - "--service-node"
+        - "envoy-sidecar"
+        - "--log-level"
+        - "warn"
+        - "--concurrency"
+        - "8"
+        - "--drain-strategy"
+        - "immediate"
+        - "--drain-time-s"
+        - "60"
+        - "-c"
+        - "/etc/envoy/envoy.yaml"
