@@ -1,0 +1,38 @@
+# Baseline arm: the stock default profile (config.md section 8), stated explicitly
+# so the treatment overlay can differ from it by the route-to-holder filter only.
+# Mirrors the routerlib chart's default-plugins.yaml (non-latencyPredictor branch,
+# config/charts/routerlib/templates/_config.yaml:30-100) and the loader's default
+# (pkg/epp/config/loader/defaults.go:48-105). The utilization-detector filter,
+# single-profile-handler, parsers and approx-prefix-cache-producer are injected by
+# the loader for any config (defaults.go:125-143, cmd/epp/runner/runner.go:794).
+# config.md declares no InferenceObjectives, so none are added.
+scenario:
+- name: lora2
+  router:
+    epp:
+      pluginsConfigFile: custom-plugins.yaml
+      pluginsCustomConfig:
+        custom-plugins.yaml: |
+          apiVersion: llm-d.ai/v1alpha1
+          kind: EndpointPickerConfig
+          plugins:
+          - type: queue-scorer
+          - type: kv-cache-utilization-scorer
+          - type: prefix-cache-scorer
+          - type: max-score-picker
+          - type: metrics-data-source
+            parameters:
+              scheme: "http"
+              path: "/metrics"
+              insecureSkipVerify: true
+          - type: core-metrics-extractor
+          schedulingProfiles:
+          - name: default
+            plugins:
+            - pluginRef: queue-scorer
+              weight: 2
+            - pluginRef: kv-cache-utilization-scorer
+              weight: 2
+            - pluginRef: prefix-cache-scorer
+              weight: 3
+            - pluginRef: max-score-picker

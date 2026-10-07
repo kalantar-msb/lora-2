@@ -1,0 +1,52 @@
+# Treatment arm: the baseline's stock profile with route-to-holder-filter placed
+# first (config.md section 8). pluginsCustomConfig is a single string, so it
+# replaces the baseline's wholesale; everything except the filter is repeated
+# unchanged from the baseline overlay.
+#
+# route-to-holder-filter parameters:
+#   fallbackSlots  GPU adapter slots per pod until the pod reports max_lora.
+#                  Must equal vLLM --max-loras (3).
+#   baseModels     model names that are the base model, not an adapter;
+#                  requests for them skip the filter. "${model.name}" is
+#                  substituted by llm-d-benchmark at render time with the
+#                  scenario's model.name, which is also vLLM's
+#                  --served-model-name.
+#
+# Run the EPP as ONE replica: the residency mirror only sees traffic its own
+# replica routed (algorithms/routetoholder.go, D1).
+scenario:
+- name: lora2
+  router:
+    epp:
+      pluginsConfigFile: custom-plugins.yaml
+      pluginsCustomConfig:
+        custom-plugins.yaml: |
+          apiVersion: llm-d.ai/v1alpha1
+          kind: EndpointPickerConfig
+          plugins:
+          - type: route-to-holder-filter
+            parameters:
+              fallbackSlots: 3
+              baseModels:
+              - "${model.name}"
+          - type: queue-scorer
+          - type: kv-cache-utilization-scorer
+          - type: prefix-cache-scorer
+          - type: max-score-picker
+          - type: metrics-data-source
+            parameters:
+              scheme: "http"
+              path: "/metrics"
+              insecureSkipVerify: true
+          - type: core-metrics-extractor
+          schedulingProfiles:
+          - name: default
+            plugins:
+            - pluginRef: route-to-holder-filter
+            - pluginRef: queue-scorer
+              weight: 2
+            - pluginRef: kv-cache-utilization-scorer
+              weight: 2
+            - pluginRef: prefix-cache-scorer
+              weight: 3
+            - pluginRef: max-score-picker

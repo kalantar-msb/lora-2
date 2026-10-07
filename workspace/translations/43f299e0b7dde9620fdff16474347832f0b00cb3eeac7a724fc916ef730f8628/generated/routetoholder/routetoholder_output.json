@@ -1,0 +1,18 @@
+{
+  "plugin_type": "route-to-holder-filter",
+  "files_created": [
+    "pkg/epp/framework/plugins/scheduling/filter/routetoholder/routetoholder.go",
+    "pkg/epp/framework/plugins/scheduling/filter/routetoholder/routetoholder_test.go"
+  ],
+  "files_modified": [
+    "cmd/epp/runner/runner.go"
+  ],
+  "package": "routetoholder",
+  "register_file": "cmd/epp/runner/runner.go",
+  "test_commands": [
+    "CGO_ENABLED=0 go test -count=1 ./pkg/epp/framework/plugins/scheduling/filter/routetoholder/..."
+  ],
+  "config_kind": "EndpointPickerConfig",
+  "treatment_config_generated": true,
+  "description": "route-to-holder-filter: one plugin type (RouteToHolder) implementing scheduling Filter, requestcontrol PreRequest, ResponseHeaderProcessor and ResponseBodyProcessor. Filter keeps only the endpoints whose residency mirror holds the request's adapter (input order), or every endpoint when none does or the request is for a configured base model; the stock scorers and max-score-picker then run over that set. The mirror is a per-endpoint capacity-bounded LRU with reference-counted pins: eviction of the LRU unpinned adapter and a pending load at dispatch on a cold miss (PreRequest), residency on the first 2xx response (ResponseHeader, or ResponseBody with TerminationCause natural), pin release and abort cleanup at end of stream (ResponseBody), and an ActiveModels/MaxActiveModels correction applied once per metrics UpdateTime from Filter. All state is guarded by one mutex. Parameters: fallbackSlots (required, > 0) and baseModels. No core modification: the only change to an existing file is the one-line plugin registration (plus import) in cmd/epp/runner/runner.go, which is the registration file, not a change to component behavior. Declared degradations D1-D13 are those of algorithms/routetoholder.go."
+}

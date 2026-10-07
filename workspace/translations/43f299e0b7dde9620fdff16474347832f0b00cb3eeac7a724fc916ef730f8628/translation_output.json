@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "translation_hash": "43f299e0b7dde9620fdff16474347832f0b00cb3eeac7a724fc916ef730f8628",
+  "source": "skill",
+  "alias": "lora2",
+  "algorithms": [
+    {
+      "name": "routetoholder",
+      "source_path": "algorithms/routetoholder.go",
+      "source_sha256": "e46d222b055e5e9a478280c95e998d436e4f49dbbdb99be797585a024b5fdc1a",
+      "config_path": null,
+      "image_ref": "ghcr.io/kalantar/llm-d-router:43f299e0b7dd-routetoholder",
+      "image_digest": "sha256:c0f0e09243fc5c887d3e68f6c9d5123025bdbdaca97ded27dc0431513b4d80d5"
+    }
+  ],
+  "created_at": "2026-10-07T16:34:39Z"
+}

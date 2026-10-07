@@ -1,0 +1,16 @@
+{
+  "round": 1,
+  "consensus": false,
+  "approve_count": 0,
+  "total_successful": 1,
+  "reviews": [
+    {
+      "model": "agent-reviewer",
+      "verdict": "NEEDS_CHANGES",
+      "issues": [
+        "[code-quality] routetoholder.go ~196-200: the duplicate-RequestID path in PreRequest releases the earlier pin and deletes the inflight entry, but if the earlier request was unconfirmed its loading[adapter] on its pod is never cleared, inflating len(lru)+len(loading) and suppressing the next cold-miss eviction. Fix: apply the same D13 abort handling (clear loading unless otherPending) before dropping it, and add a test (PreRequest '1' x podA unconfirmed, then PreRequest '1' y podB; podA loading/pins empty, podB pinned+loading for y)."
+      ],
+      "summary": "Fidelity, accessor choices, registration, config and assembly all pass; only the duplicate-RequestID branch leaks a pending load and lacks a test."
+    }
+  ]
+}

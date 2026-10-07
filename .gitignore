@@ -6,5 +6,9 @@ tmp/
 __pycache__/
 *.pyc
 
+workspace/clusters/
+workspace/setup_config.json
+workspace/runs/
+
 # macOS
 .DS_Store
