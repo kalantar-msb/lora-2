@@ -11,7 +11,24 @@
       "config_path": null,
       "image_ref": "ghcr.io/kalantar/llm-d-router:43f299e0b7dd-routetoholder",
       "image_digest": "sha256:c0f0e09243fc5c887d3e68f6c9d5123025bdbdaca97ded27dc0431513b4d80d5"
+    },
+    {
+      "name": "loraresidency",
+      "source_path": null,
+      "source_sha256": null,
+      "config_path": "generated/loraresidency/loraresidency_config.yaml",
+      "image_ref": "ghcr.io/kalantar/llm-d-router:43f299e0b7dd-loraresidency",
+      "image_digest": "sha256:9cd8a782b38fd16dd9245381744aad955bb4e48ee45118ac8c1d405786ea2a7a"
     }
   ],
-  "created_at": "2026-10-07T16:34:39Z"
+  "created_at": "2026-10-07T16:34:39Z",
+  "append_history": [
+    {
+      "appended_at": "2026-10-08T20:05:06Z",
+      "algorithms": [
+        "loraresidency"
+      ],
+      "kind": "build"
+    }
+  ]
 }

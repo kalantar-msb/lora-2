@@ -37,7 +37,7 @@ scenario:
         # The highest rank in the set. Every slot is sized for this, out of the KV budget.
         - "--max-lora-rank=32"
         # Host-memory cache: an eviction then costs an activation, not a disk read.
-        - "--max-cpu-loras=6"
+        - "--max-cpu-loras=8"
 
     extraEnvVars:
       - name: VLLM_ALLOW_RUNTIME_LORA_UPDATING
@@ -64,14 +64,30 @@ scenario:
     # BASE_MODEL_PATH therefore has to track the chart's model mount and the scenario's
     # `model.path`. If either changes, resolution breaks again the same silent way,
     # which is why the rewrite is verified below rather than assumed.
+    #
+    # ADAPTER_COPIES sets how many copies of each adapter to install (1 = the nine
+    # adapters as published; 2 doubles the set; 3 triples it). vLLM keys an adapter by
+    # its directory name, so each copy is a separate adapter with its own GPU slot and
+    # CPU-cache entry, although the weights are identical. The first copy keeps the
+    # adapter's own name; further copies are named <adapter>-2, <adapter>-3, ... so a
+    # workload written for the nine original names stays valid at any setting. The
+    # workload must name the extra copies for them to receive traffic.
     initContainers:
       - name: pull-lora
         image: alpine/git
+        env:
+          - name: ADAPTER_COPIES
+            value: "3"
         command: ["/bin/sh", "-c"]
         args:
           - |
             set -eu
             BASE_MODEL_PATH="/model-cache/models/ibm-granite/granite-3.3-2b-instruct"
+            COPIES="${ADAPTER_COPIES:-1}"
+            case "${COPIES}" in
+              ''|*[!0-9]*) echo "ADAPTER_COPIES must be a positive integer, got '${COPIES}'"; exit 1 ;;
+            esac
+            [ "${COPIES}" -ge 1 ] || { echo "ADAPTER_COPIES must be >= 1, got ${COPIES}"; exit 1; }
             git clone --depth 1 \
               https://huggingface.co/ibm-granite/rag-intrinsics-lib /tmp/lib
             for a in answerability citations uncertainty context_relevance \
@@ -80,15 +96,22 @@ scenario:
                      answer_relevance_rewriter; do
               src="/tmp/lib/${a}/lora/granite-3.3-2b-instruct"
               test -f "${src}/adapter_config.json" || { echo "missing: ${src}"; exit 1; }
-              mkdir -p "/adapters/${a}"
-              cp -a "${src}/." "/adapters/${a}/"
-              cfg="/adapters/${a}/adapter_config.json"
-              sed -i \
-                "s#\"base_model_name_or_path\": \"[^\"]*\"#\"base_model_name_or_path\": \"${BASE_MODEL_PATH}\"#" \
-                "${cfg}"
-              grep -q "\"base_model_name_or_path\": \"${BASE_MODEL_PATH}\"" "${cfg}" \
-                || { echo "base_model_name_or_path rewrite failed: ${cfg}"; exit 1; }
+              k=1
+              while [ "${k}" -le "${COPIES}" ]; do
+                if [ "${k}" -eq 1 ]; then name="${a}"; else name="${a}-${k}"; fi
+                dst="/adapters/${name}"
+                mkdir -p "${dst}"
+                cp -a "${src}/." "${dst}/"
+                cfg="${dst}/adapter_config.json"
+                sed -i \
+                  "s#\"base_model_name_or_path\": \"[^\"]*\"#\"base_model_name_or_path\": \"${BASE_MODEL_PATH}\"#" \
+                  "${cfg}"
+                grep -q "\"base_model_name_or_path\": \"${BASE_MODEL_PATH}\"" "${cfg}" \
+                  || { echo "base_model_name_or_path rewrite failed: ${cfg}"; exit 1; }
+                k=$((k + 1))
+              done
             done
+            echo "installed $(ls -1 /adapters | wc -l) adapters (ADAPTER_COPIES=${COPIES}):"
             ls -1 /adapters
         volumeMounts:
           - name: adapters

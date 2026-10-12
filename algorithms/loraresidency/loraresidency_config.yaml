@@ -1,0 +1,53 @@
+# Treatment arm: tantawi/lora-control's lora-residency-scorer, in the EPP profile
+# that scorer was tested with, adapted to llm-d-router v0.11.0.
+#
+# Source: tantawi/lora-control f4cd838, epp-scorer/. The plugin is ported in-tree
+# at Alpha stability, so the EPP needs --allow-experimental-plugins (set by
+# baselines/defaults/epp-verbosity.yaml).
+#
+# Changes from the tested config:
+#   apiVersion   llm-d.ai/v1 -> llm-d.ai/v1alpha1. v0.11.0 registers only v1alpha1
+#                (apix/config/v1alpha1/zz_generated.register.go:18).
+#   baseModels   "${MODEL_NAME}" -> "${model.name}". llm-d-benchmark substitutes
+#                only config variables of the ${model.name} form (config/README.md).
+#   maxCpuLoras  4 -> 2. It must equal the pods' --max-cpu-loras, which is 2 in
+#                baselines/defaults/lora-serving.yaml.
+#
+# This profile differs from the baseline by more than the scorer: it has no
+# queue-scorer or kv-cache-utilization-scorer, prefix-cache-scorer is weight 2
+# rather than 3, and decode-filter is added (it keeps pods labelled
+# llm-d.ai/role=decode, which is every vLLM pod here).
+#
+# Run the EPP as ONE replica: the scorer's residency model only sees traffic its
+# own replica routed.
+scenario:
+- name: lora2
+  router:
+    epp:
+      pluginsConfigFile: custom-plugins.yaml
+      pluginsCustomConfig:
+        custom-plugins.yaml: |
+          apiVersion: llm-d.ai/v1alpha1
+          kind: EndpointPickerConfig
+          plugins:
+          - type: approx-prefix-cache-producer
+            parameters:
+              maxPrefixTokensToMatch: 16384
+              lruCapacityPerServer: 31250
+          - type: prefix-cache-scorer
+          - type: decode-filter
+          - type: max-score-picker
+          - type: single-profile-handler
+          - type: lora-residency-scorer
+            parameters:
+              baseModels: ["${model.name}"]
+              maxCpuLoras: 2
+          schedulingProfiles:
+          - name: default
+            plugins:
+            - pluginRef: decode-filter
+            - pluginRef: max-score-picker
+            - pluginRef: prefix-cache-scorer
+              weight: 2
+            - pluginRef: lora-residency-scorer
+              weight: 2

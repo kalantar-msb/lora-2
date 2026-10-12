@@ -13,26 +13,45 @@ scenario:
       pluginsConfigFile: custom-plugins.yaml
       pluginsCustomConfig:
         custom-plugins.yaml: |
+          # apiVersion: llm-d.ai/v1alpha1
+          # kind: EndpointPickerConfig
+          # plugins:
+          # - type: queue-scorer
+          # - type: kv-cache-utilization-scorer
+          # - type: prefix-cache-scorer
+          # - type: max-score-picker
+          # - type: metrics-data-source
+          #   parameters:
+          #     scheme: "http"
+          #     path: "/metrics"
+          #     insecureSkipVerify: true
+          # - type: core-metrics-extractor
+          # schedulingProfiles:
+          # - name: default
+          #   plugins:
+          #   - pluginRef: queue-scorer
+          #     weight: 2
+          #   - pluginRef: kv-cache-utilization-scorer
+          #     weight: 2
+          #   - pluginRef: prefix-cache-scorer
+          #     weight: 3
+          #   - pluginRef: max-score-picker
+
           apiVersion: llm-d.ai/v1alpha1
           kind: EndpointPickerConfig
           plugins:
-          - type: queue-scorer
-          - type: kv-cache-utilization-scorer
-          - type: prefix-cache-scorer
-          - type: max-score-picker
-          - type: metrics-data-source
-            parameters:
-              scheme: "http"
-              path: "/metrics"
-              insecureSkipVerify: true
-          - type: core-metrics-extractor
+            - type: queue-scorer
+            - type: kv-cache-utilization-scorer
+            - type: prefix-cache-scorer
+            - type: lora-affinity-scorer
           schedulingProfiles:
-          - name: default
-            plugins:
-            - pluginRef: queue-scorer
-              weight: 2
-            - pluginRef: kv-cache-utilization-scorer
-              weight: 2
-            - pluginRef: prefix-cache-scorer
-              weight: 3
-            - pluginRef: max-score-picker
+            - name: default
+              plugins:
+                - pluginRef: queue-scorer
+                  weight: 2
+                - pluginRef: kv-cache-utilization-scorer
+                  weight: 2
+                - pluginRef: prefix-cache-scorer
+                  weight: 3
+                - pluginRef: lora-affinity-scorer
+                  weight: 6

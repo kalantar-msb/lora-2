@@ -74,8 +74,15 @@ component:
       # - go test -count=1 -race ./pkg/epp/framework/plugins/scheduling/filter/routetoholder/...
 
 algorithms:
-  - name: routetoholder
-    source: algorithms/routetoholder.go
+  # - name: routetoholder
+  #   source: algorithms/routetoholder.go
+  #   defaults: baseline
+  # Registered with `sim2real translation append --build`, not translated: the
+  # lora-residency-scorer from tantawi/lora-control f4cd838 (epp-scorer/), ported
+  # in-tree onto v0.11.0. Overlay: algorithms/loraresidency/loraresidency_config.yaml.
+  # A re-translate does not carry it; re-append it.
+  - name: loraresidency
+    byo: true
     defaults: baseline
 
 baselines:
@@ -83,7 +90,7 @@ baselines:
     scenario: baselines/baseline.yaml
 
 workloads:
-  - workloads/granite-9adapter.workload.yaml
+  - workloads/granite-27adapter.workload.yaml
 
 measurement: measurement.yaml
 

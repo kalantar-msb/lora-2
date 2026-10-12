@@ -28,8 +28,8 @@
 # llmd-affinity-baseline.workload.yaml.
 version: '2'
 seed: 42
-aggregate_rate: 10.0
-num_requests: 1000
+aggregate_rate: 6.0
+num_requests: 1500
 clients:
 - id: client-answerability
   model: ibm-granite/granite-3.3-2b-instruct
@@ -47,7 +47,7 @@ clients:
   output_distribution:
     type: exponential
     params:
-      mean: 128
+      mean: 32
   adapter: answerability
 - id: client-citations
   model: ibm-granite/granite-3.3-2b-instruct
@@ -65,7 +65,7 @@ clients:
   output_distribution:
     type: exponential
     params:
-      mean: 128
+      mean: 32
   adapter: citations
 - id: client-uncertainty
   model: ibm-granite/granite-3.3-2b-instruct
@@ -83,7 +83,7 @@ clients:
   output_distribution:
     type: exponential
     params:
-      mean: 128
+      mean: 32
   adapter: uncertainty
 - id: client-context_relevance
   model: ibm-granite/granite-3.3-2b-instruct
@@ -101,7 +101,7 @@ clients:
   output_distribution:
     type: exponential
     params:
-      mean: 128
+      mean: 32
   adapter: context_relevance
 - id: client-hallucination_detection
   model: ibm-granite/granite-3.3-2b-instruct
@@ -119,7 +119,7 @@ clients:
   output_distribution:
     type: exponential
     params:
-      mean: 128
+      mean: 32
   adapter: hallucination_detection
 - id: client-query_rewrite
   model: ibm-granite/granite-3.3-2b-instruct
@@ -137,7 +137,7 @@ clients:
   output_distribution:
     type: exponential
     params:
-      mean: 128
+      mean: 32
   adapter: query_rewrite
 - id: client-answer_relevance_classifier
   model: ibm-granite/granite-3.3-2b-instruct
@@ -155,7 +155,7 @@ clients:
   output_distribution:
     type: exponential
     params:
-      mean: 128
+      mean: 32
   adapter: answer_relevance_classifier
 - id: client-requirement_check
   model: ibm-granite/granite-3.3-2b-instruct
@@ -173,7 +173,7 @@ clients:
   output_distribution:
     type: exponential
     params:
-      mean: 128
+      mean: 32
   adapter: requirement_check
 - id: client-answer_relevance_rewriter
   model: ibm-granite/granite-3.3-2b-instruct
@@ -191,5 +191,5 @@ clients:
   output_distribution:
     type: exponential
     params:
-      mean: 128
+      mean: 32
   adapter: answer_relevance_rewriter
