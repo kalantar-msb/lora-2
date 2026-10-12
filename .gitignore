@@ -10,7 +10,9 @@ __pycache__/
 
 workspace/clusters/
 workspace/setup_config.json
-workspace/runs/
+workspace/runs/*/results
+workspace/runs*/*/manifest.assembly.yaml
+workspace/runs/*/run_metadata.json
 
 # macOS
 .DS_Store

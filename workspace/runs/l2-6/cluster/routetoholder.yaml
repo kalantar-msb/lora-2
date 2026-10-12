@@ -1,0 +1,157 @@
+scenario:
+- decode:
+    acceleratorType:
+      labelKey: nvidia.com/gpu.product
+      labelValue: NVIDIA-H100-80GB-HBM3
+    extraEnvVars:
+    - name: VLLM_ALLOW_RUNTIME_LORA_UPDATING
+      value: 'true'
+    - name: VLLM_PLUGINS
+      value: lora_filesystem_resolver
+    - name: VLLM_LORA_RESOLVER_CACHE_DIR
+      value: /adapters
+    initContainers:
+    - args:
+      - "set -eu\nBASE_MODEL_PATH=\"/model-cache/models/ibm-granite/granite-3.3-2b-instruct\"\
+        \nCOPIES=\"${ADAPTER_COPIES:-1}\"\ncase \"${COPIES}\" in\n  ''|*[!0-9]*) echo\
+        \ \"ADAPTER_COPIES must be a positive integer, got '${COPIES}'\"; exit 1 ;;\n\
+        esac\n[ \"${COPIES}\" -ge 1 ] || { echo \"ADAPTER_COPIES must be >= 1, got\
+        \ ${COPIES}\"; exit 1; }\ngit clone --depth 1 \\\n  https://huggingface.co/ibm-granite/rag-intrinsics-lib\
+        \ /tmp/lib\nfor a in answerability citations uncertainty context_relevance\
+        \ \\\n         hallucination_detection query_rewrite \\\n         answer_relevance_classifier\
+        \ requirement_check \\\n         answer_relevance_rewriter; do\n  src=\"/tmp/lib/${a}/lora/granite-3.3-2b-instruct\"\
+        \n  test -f \"${src}/adapter_config.json\" || { echo \"missing: ${src}\";\
+        \ exit 1; }\n  k=1\n  while [ \"${k}\" -le \"${COPIES}\" ]; do\n    if [ \"\
+        ${k}\" -eq 1 ]; then name=\"${a}\"; else name=\"${a}-${k}\"; fi\n    dst=\"\
+        /adapters/${name}\"\n    mkdir -p \"${dst}\"\n    cp -a \"${src}/.\" \"${dst}/\"\
+        \n    cfg=\"${dst}/adapter_config.json\"\n    sed -i \\\n      \"s#\\\"base_model_name_or_path\\\
+        \": \\\"[^\\\"]*\\\"#\\\"base_model_name_or_path\\\": \\\"${BASE_MODEL_PATH}\\\
+        \"#\" \\\n      \"${cfg}\"\n    grep -q \"\\\"base_model_name_or_path\\\"\
+        : \\\"${BASE_MODEL_PATH}\\\"\" \"${cfg}\" \\\n      || { echo \"base_model_name_or_path\
+        \ rewrite failed: ${cfg}\"; exit 1; }\n    k=$((k + 1))\n  done\ndone\necho\
+        \ \"installed $(ls -1 /adapters | wc -l) adapters (ADAPTER_COPIES=${COPIES}):\"\
+        \nls -1 /adapters\n"
+      command:
+      - /bin/sh
+      - -c
+      env:
+      - name: ADAPTER_COPIES
+        value: '3'
+      image: alpine/git
+      name: pull-lora
+      resources:
+        limits:
+          ephemeral-storage: 16Gi
+        requests:
+          ephemeral-storage: 8Gi
+      volumeMounts:
+      - mountPath: /adapters
+        name: adapters
+    replicas: 4
+    resources:
+      limits:
+        cpu: '8'
+        memory: 32Gi
+      requests:
+        cpu: '4'
+        memory: 16Gi
+    vllm:
+      additionalFlags:
+      - --enable-lora
+      - --max-loras=3
+      - --max-lora-rank=32
+      - --max-cpu-loras=8
+      - --max-num-seqs=64
+      - --no-enable-prefix-caching
+      - --dtype=bfloat16
+  gateway:
+    className: epponly
+    externallyManaged: true
+  huggingface:
+    secretName: hf-secret
+  model:
+    blockSize: 16
+    gpuMemoryUtilization: 0.9
+    huggingfaceId: ibm-granite/granite-3.3-2b-instruct
+    maxModelLen: 8192
+    name: ibm-granite/granite-3.3-2b-instruct
+    path: models/ibm-granite/granite-3.3-2b-instruct
+    shortName: ibm-granite-granite-3.3-2b-instruct
+    size: 1Ti
+  name: lora2
+  prefill:
+    extraEnvVars:
+    - name: VLLM_HTTP_TIMEOUT_KEEP_ALIVE
+      value: '120'
+  router:
+    epp:
+      flags:
+        allow-experimental-plugins: true
+        v: '3'
+      image:
+        pullPolicy: Always
+        registry: ghcr.io/kalantar
+        repository: llm-d-router
+        tag: 43f299e0b7dd-routetoholder
+      pluginsConfigFile: custom-plugins.yaml
+      pluginsCustomConfig:
+        custom-plugins.yaml: "apiVersion: llm-d.ai/v1alpha1\nkind: EndpointPickerConfig\n\
+          plugins:\n- type: route-to-holder-filter\n  parameters:\n    fallbackSlots:\
+          \ 3\n    baseModels:\n    - \"${model.name}\"\n- type: queue-scorer\n- type:\
+          \ kv-cache-utilization-scorer\n- type: prefix-cache-scorer\n- type: max-score-picker\n\
+          - type: metrics-data-source\n  parameters:\n    scheme: \"http\"\n    path:\
+          \ \"/metrics\"\n    insecureSkipVerify: true\n- type: core-metrics-extractor\n\
+          schedulingProfiles:\n- name: default\n  plugins:\n  - pluginRef: route-to-holder-filter\n\
+          \  - pluginRef: queue-scorer\n    weight: 2\n  - pluginRef: kv-cache-utilization-scorer\n\
+          \    weight: 2\n  - pluginRef: prefix-cache-scorer\n    weight: 3\n  - pluginRef:\
+          \ max-score-picker\n"
+    proxy:
+      args:
+      - --service-node
+      - envoy-sidecar
+      - --log-level
+      - warn
+      - --concurrency
+      - '8'
+      - --drain-strategy
+      - immediate
+      - --drain-time-s
+      - '60'
+      - -c
+      - /etc/envoy/envoy.yaml
+      resources:
+        limits:
+          cpu: '8'
+          memory: 16Gi
+        requests:
+          cpu: '4'
+          memory: 8Gi
+    tokenizer:
+      enabled: true
+      env:
+      - name: HF_TOKEN
+        valueFrom:
+          secretKeyRef:
+            key: HF_TOKEN
+            name: hf-secret
+      - name: HF_HOME
+        value: /tmp/hf
+  routing:
+    proxy:
+      resources:
+        requests:
+          cpu: 4
+          memory: 16Gi
+  storage:
+    modelPvc:
+      size: 1Ti
+  vllmCommon:
+    flags:
+      disableUvicornAccessLog: false
+    volumeMounts:
+    - mountPath: /adapters
+      name: adapters
+    volumes:
+    - emptyDir: {}
+      name: adapters
+      type: emptyDir
