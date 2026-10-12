@@ -91,6 +91,7 @@ baselines:
 
 workloads:
   - workloads/granite-27adapter.workload.yaml
+  - workloads/granite-27adapter.workload-30.yaml
 
 measurement: measurement.yaml
 

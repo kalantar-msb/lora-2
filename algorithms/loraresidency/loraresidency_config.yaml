@@ -30,24 +30,21 @@ scenario:
           apiVersion: llm-d.ai/v1alpha1
           kind: EndpointPickerConfig
           plugins:
-          - type: approx-prefix-cache-producer
-            parameters:
-              maxPrefixTokensToMatch: 16384
-              lruCapacityPerServer: 31250
-          - type: prefix-cache-scorer
-          - type: decode-filter
-          - type: max-score-picker
-          - type: single-profile-handler
-          - type: lora-residency-scorer
-            parameters:
-              baseModels: ["${model.name}"]
-              maxCpuLoras: 2
+            - type: queue-scorer
+            - type: kv-cache-utilization-scorer
+            - type: prefix-cache-scorer
+            - type: lora-residency-scorer
+              parameters:
+                baseModels: ["${model.name}"]
+                maxCpuLoras: 8        # must equal the pods' --max-cpu-loras
           schedulingProfiles:
-          - name: default
-            plugins:
-            - pluginRef: decode-filter
-            - pluginRef: max-score-picker
-            - pluginRef: prefix-cache-scorer
-              weight: 2
-            - pluginRef: lora-residency-scorer
-              weight: 2
+            - name: default
+              plugins:
+                - pluginRef: queue-scorer
+                  weight: 2
+                - pluginRef: kv-cache-utilization-scorer
+                  weight: 2
+                - pluginRef: prefix-cache-scorer
+                  weight: 3
+                - pluginRef: lora-residency-scorer
+                  weight: 6
