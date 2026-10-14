@@ -1,0 +1,271 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  name: baseline-granite-1-5-27adapter.workload-7-5-128-l2-9-i1
+  namespace: kalantar-0
+spec:
+  params:
+  - name: experimentId
+    value: l2-9
+  - name: runName
+    value: l2-9
+  - name: namespace
+    value: kalantar-0
+  - name: phase
+    value: baseline
+  - name: scenarioContent
+    value: "scenario:\n- decode:\n    acceleratorType:\n      labelKey: kubernetes.io/hostname\n\
+      \      labelValue: ''\n      labelValues:\n      - pokprod-b93r38s1\n      -\
+      \ pokprod-b93r38s2\n      - pokprod-b93r38s3\n      - pokprod-b93r39s0\n   \
+      \   - pokprod-b93r39s1\n      - pokprod-b93r39s2\n      - pokprod-b93r43s0\n\
+      \      - pokprod-b93r43s2\n      - pokprod-b93r43s3\n      - pokprod-b93r44s0\n\
+      \      - pokprod-b93r44s1\n      - pokprod-b93r44s2\n    extraEnvVars:\n   \
+      \ - name: VLLM_ALLOW_RUNTIME_LORA_UPDATING\n      value: 'true'\n    - name:\
+      \ VLLM_PLUGINS\n      value: lora_filesystem_resolver\n    - name: VLLM_LORA_RESOLVER_CACHE_DIR\n\
+      \      value: /adapters\n    initContainers:\n    - args:\n      - \"set -eu\\\
+      nBASE_MODEL_PATH=\\\"/model-cache/models/ibm-granite/granite-3.3-2b-instruct\\\
+      \"\\\n        \\nCOPIES=\\\"${ADAPTER_COPIES:-1}\\\"\\ncase \\\"${COPIES}\\\"\
+      \ in\\n  ''|*[!0-9]*) echo\\\n        \\ \\\"ADAPTER_COPIES must be a positive\
+      \ integer, got '${COPIES}'\\\"; exit 1 ;;\\n\\\n        esac\\n[ \\\"${COPIES}\\\
+      \" -ge 1 ] || { echo \\\"ADAPTER_COPIES must be >= 1, got\\\n        \\ ${COPIES}\\\
+      \"; exit 1; }\\ngit clone --depth 1 \\\\\\n  https://huggingface.co/ibm-granite/rag-intrinsics-lib\\\
+      \n        \\ /tmp/lib\\nfor a in answerability citations uncertainty context_relevance\\\
+      \n        \\ \\\\\\n         hallucination_detection query_rewrite \\\\\\n \
+      \        answer_relevance_classifier\\\n        \\ requirement_check \\\\\\\
+      n         answer_relevance_rewriter; do\\n  src=\\\"/tmp/lib/${a}/lora/granite-3.3-2b-instruct\\\
+      \"\\\n        \\n  test -f \\\"${src}/adapter_config.json\\\" || { echo \\\"\
+      missing: ${src}\\\";\\\n        \\ exit 1; }\\n  k=1\\n  while [ \\\"${k}\\\"\
+      \ -le \\\"${COPIES}\\\" ]; do\\n    if [ \\\"\\\n        ${k}\\\" -eq 1 ]; then\
+      \ name=\\\"${a}\\\"; else name=\\\"${a}-${k}\\\"; fi\\n    dst=\\\"\\\n    \
+      \    /adapters/${name}\\\"\\n    mkdir -p \\\"${dst}\\\"\\n    cp -a \\\"${src}/.\\\
+      \" \\\"${dst}/\\\"\\\n        \\n    cfg=\\\"${dst}/adapter_config.json\\\"\\\
+      n    sed -i \\\\\\n      \\\"s#\\\\\\\"base_model_name_or_path\\\\\\\n     \
+      \   \\\": \\\\\\\"[^\\\\\\\"]*\\\\\\\"#\\\\\\\"base_model_name_or_path\\\\\\\
+      \": \\\\\\\"${BASE_MODEL_PATH}\\\\\\\n        \\\"#\\\" \\\\\\n      \\\"${cfg}\\\
+      \"\\n    grep -q \\\"\\\\\\\"base_model_name_or_path\\\\\\\"\\\n        : \\\
+      \\\\\"${BASE_MODEL_PATH}\\\\\\\"\\\" \\\"${cfg}\\\" \\\\\\n      || { echo \\\
+      \"base_model_name_or_path\\\n        \\ rewrite failed: ${cfg}\\\"; exit 1;\
+      \ }\\n    k=$((k + 1))\\n  done\\ndone\\necho\\\n        \\ \\\"installed $(ls\
+      \ -1 /adapters | wc -l) adapters (ADAPTER_COPIES=${COPIES}):\\\"\\\n       \
+      \ \\nls -1 /adapters\\n\"\n      command:\n      - /bin/sh\n      - -c\n   \
+      \   env:\n      - name: ADAPTER_COPIES\n        value: '3'\n      image: alpine/git\n\
+      \      name: pull-lora\n      resources:\n        limits:\n          ephemeral-storage:\
+      \ 16Gi\n        requests:\n          ephemeral-storage: 8Gi\n      volumeMounts:\n\
+      \      - mountPath: /adapters\n        name: adapters\n    replicas: 4\n   \
+      \ resources:\n      limits:\n        cpu: '8'\n        memory: 32Gi\n      requests:\n\
+      \        cpu: '4'\n        memory: 16Gi\n    vllm:\n      additionalFlags:\n\
+      \      - --enable-lora\n      - --max-loras=3\n      - --max-lora-rank=32\n\
+      \      - --max-cpu-loras=8\n      - --max-num-seqs=64\n      - --no-enable-prefix-caching\n\
+      \      - --dtype=bfloat16\n  gateway:\n    className: epponly\n    externallyManaged:\
+      \ true\n  huggingface:\n    secretName: hf-secret\n  model:\n    blockSize:\
+      \ 16\n    gpuMemoryUtilization: 0.9\n    huggingfaceId: ibm-granite/granite-3.3-2b-instruct\n\
+      \    maxModelLen: 8192\n    name: ibm-granite/granite-3.3-2b-instruct\n    path:\
+      \ models/ibm-granite/granite-3.3-2b-instruct\n    shortName: ibm-granite-granite-3.3-2b-instruct\n\
+      \    size: 1Ti\n  name: lora2\n  prefill:\n    extraEnvVars:\n    - name: VLLM_HTTP_TIMEOUT_KEEP_ALIVE\n\
+      \      value: '120'\n  router:\n    epp:\n      flags:\n        allow-experimental-plugins:\
+      \ true\n        v: '3'\n      pluginsConfigFile: custom-plugins.yaml\n     \
+      \ pluginsCustomConfig:\n        custom-plugins.yaml: \"# apiVersion: llm-d.ai/v1alpha1\\\
+      n# kind: EndpointPickerConfig\\n\\\n          # plugins:\\n# - type: queue-scorer\\\
+      n# - type: kv-cache-utilization-scorer\\n\\\n          # - type: prefix-cache-scorer\\\
+      n# - type: max-score-picker\\n# - type: metrics-data-source\\n\\\n         \
+      \ #   parameters:\\n#     scheme: \\\"http\\\"\\n#     path: \\\"/metrics\\\"\
+      \\n#   \\\n          \\  insecureSkipVerify: true\\n# - type: core-metrics-extractor\\\
+      n# schedulingProfiles:\\n\\\n          # - name: default\\n#   plugins:\\n#\
+      \   - pluginRef: queue-scorer\\n#     weight:\\\n          \\ 2\\n#   - pluginRef:\
+      \ kv-cache-utilization-scorer\\n#     weight: 2\\n#  \\\n          \\ - pluginRef:\
+      \ prefix-cache-scorer\\n#     weight: 3\\n#   - pluginRef: max-score-picker\\\
+      n\\\n          \\napiVersion: llm-d.ai/v1alpha1\\nkind: EndpointPickerConfig\\\
+      nplugins:\\n\\\n          \\  - type: queue-scorer\\n  - type: kv-cache-utilization-scorer\\\
+      n  - type:\\\n          \\ prefix-cache-scorer\\n  - type: lora-affinity-scorer\\\
+      nschedulingProfiles:\\n\\\n          \\  - name: default\\n    plugins:\\n \
+      \     - pluginRef: queue-scorer\\n    \\\n          \\    weight: 2\\n     \
+      \ - pluginRef: kv-cache-utilization-scorer\\n       \\\n          \\ weight:\
+      \ 2\\n      - pluginRef: prefix-cache-scorer\\n        weight: 3\\n\\\n    \
+      \      \\      - pluginRef: lora-affinity-scorer\\n        weight: 6\\n\"\n\
+      \    proxy:\n      args:\n      - --service-node\n      - envoy-sidecar\n  \
+      \    - --log-level\n      - warn\n      - --concurrency\n      - '8'\n     \
+      \ - --drain-strategy\n      - immediate\n      - --drain-time-s\n      - '60'\n\
+      \      - -c\n      - /etc/envoy/envoy.yaml\n      resources:\n        limits:\n\
+      \          cpu: '8'\n          memory: 16Gi\n        requests:\n          cpu:\
+      \ '4'\n          memory: 8Gi\n    tokenizer:\n      enabled: true\n      env:\n\
+      \      - name: HF_TOKEN\n        valueFrom:\n          secretKeyRef:\n     \
+      \       key: HF_TOKEN\n            name: hf-secret\n      - name: HF_HOME\n\
+      \        value: /tmp/hf\n  routing:\n    proxy:\n      resources:\n        requests:\n\
+      \          cpu: 4\n          memory: 16Gi\n  storage:\n    modelPvc:\n     \
+      \ size: 1Ti\n  vllmCommon:\n    flags:\n      disableUvicornAccessLog: false\n\
+      \    volumeMounts:\n    - mountPath: /adapters\n      name: adapters\n    volumes:\n\
+      \    - emptyDir: {}\n      name: adapters\n      type: emptyDir\n"
+  - name: specContent
+    value: "base_dir: /workspace/source/llm-d-benchmark\n\nvalues_file:\n  path: /workspace/source/llm-d-benchmark/config/templates/values/defaults.yaml\n\
+      \ntemplate_dir:\n  path: /workspace/source/llm-d-benchmark/config/templates/jinja\n\
+      \nscenario_file:\n  path: /tmp/llmdbench-config/scenario.yaml\n"
+  - name: workloadName
+    value: granite-1_5-27adapter.workload-7_5-128
+  - name: workloadSpec
+    value: "{aggregate_rate: 7.5, clients: [{adapter: answerability, arrival: {process:\
+      \ poisson},\n      id: client-answerability, input_distribution: {params: {max:\
+      \ 2048, mean: 256,\n          min: 16, std_dev: 64}, type: gaussian}, model:\
+      \ ibm-granite/granite-3.3-2b-instruct,\n      output_distribution: {params:\
+      \ {mean: 128}, type: exponential}, rate_fraction: 0.448228274507477,\n     \
+      \ streaming: false}, {adapter: citations, arrival: {process: poisson}, id: client-citations,\n\
+      \      input_distribution: {params: {max: 2048, mean: 256, min: 16, std_dev:\
+      \ 64}, type: gaussian},\n      model: ibm-granite/granite-3.3-2b-instruct, output_distribution:\
+      \ {params: {\n          mean: 128}, type: exponential}, rate_fraction: 0.15847262621189112,\
+      \ streaming: false},\n    {adapter: uncertainty, arrival: {process: poisson},\
+      \ id: client-uncertainty, input_distribution: {\n        params: {max: 2048,\
+      \ mean: 256, min: 16, std_dev: 64}, type: gaussian}, model: ibm-granite/granite-3.3-2b-instruct,\n\
+      \      output_distribution: {params: {mean: 128}, type: exponential}, rate_fraction:\
+      \ 0.08626157164843111,\n      streaming: false}, {adapter: context_relevance,\
+      \ arrival: {process: poisson},\n      id: client-context_relevance, input_distribution:\
+      \ {params: {max: 2048, mean: 256,\n          min: 16, std_dev: 64}, type: gaussian},\
+      \ model: ibm-granite/granite-3.3-2b-instruct,\n      output_distribution: {params:\
+      \ {mean: 128}, type: exponential}, rate_fraction: 0.05602853431343462,\n   \
+      \   streaming: false}, {adapter: hallucination_detection, arrival: {process:\
+      \ poisson},\n      id: client-hallucination_detection, input_distribution: {params:\
+      \ {max: 2048,\n          mean: 256, min: 16, std_dev: 64}, type: gaussian},\
+      \ model: ibm-granite/granite-3.3-2b-instruct,\n      output_distribution: {params:\
+      \ {mean: 128}, type: exponential}, rate_fraction: 0.04009075564944618,\n   \
+      \   streaming: false}, {adapter: query_rewrite, arrival: {process: poisson},\
+      \ id: client-query_rewrite,\n      input_distribution: {params: {max: 2048,\
+      \ mean: 256, min: 16, std_dev: 64}, type: gaussian},\n      model: ibm-granite/granite-3.3-2b-instruct,\
+      \ output_distribution: {params: {\n          mean: 128}, type: exponential},\
+      \ rate_fraction: 0.03049807113420743, streaming: false},\n    {adapter: answer_relevance_classifier,\
+      \ arrival: {process: poisson}, id: client-answer_relevance_classifier,\n   \
+      \   input_distribution: {params: {max: 2048, mean: 256, min: 16, std_dev: 64},\
+      \ type: gaussian},\n      model: ibm-granite/granite-3.3-2b-instruct, output_distribution:\
+      \ {params: {\n          mean: 128}, type: exponential}, rate_fraction: 0.02420205193743625,\
+      \ streaming: false},\n    {adapter: requirement_check, arrival: {process: poisson},\
+      \ id: client-requirement_check,\n      input_distribution: {params: {max: 2048,\
+      \ mean: 256, min: 16, std_dev: 64}, type: gaussian},\n      model: ibm-granite/granite-3.3-2b-instruct,\
+      \ output_distribution: {params: {\n          mean: 128}, type: exponential},\
+      \ rate_fraction: 0.01980907827648639, streaming: false},\n    {adapter: answer_relevance_rewriter,\
+      \ arrival: {process: poisson}, id: client-answer_relevance_rewriter,\n     \
+      \ input_distribution: {params: {max: 2048, mean: 256, min: 16, std_dev: 64},\
+      \ type: gaussian},\n      model: ibm-granite/granite-3.3-2b-instruct, output_distribution:\
+      \ {params: {\n          mean: 128}, type: exponential}, rate_fraction: 0.016601047203980628,\
+      \ streaming: false},\n    {adapter: answerability-2, arrival: {process: poisson},\
+      \ id: client-answerability-2,\n      input_distribution: {params: {max: 2048,\
+      \ mean: 256, min: 16, std_dev: 64}, type: gaussian},\n      model: ibm-granite/granite-3.3-2b-instruct,\
+      \ output_distribution: {params: {\n          mean: 128}, type: exponential},\
+      \ rate_fraction: 0.014174222591308142, streaming: false},\n    {adapter: citations-2,\
+      \ arrival: {process: poisson}, id: client-citations-2, input_distribution: {\n\
+      \        params: {max: 2048, mean: 256, min: 16, std_dev: 64}, type: gaussian},\
+      \ model: ibm-granite/granite-3.3-2b-instruct,\n      output_distribution: {params:\
+      \ {mean: 128}, type: exponential}, rate_fraction: 0.01228599179313821,\n   \
+      \   streaming: false}, {adapter: uncertainty-2, arrival: {process: poisson},\
+      \ id: client-uncertainty-2,\n      input_distribution: {params: {max: 2048,\
+      \ mean: 256, min: 16, std_dev: 64}, type: gaussian},\n      model: ibm-granite/granite-3.3-2b-instruct,\
+      \ output_distribution: {params: {\n          mean: 128}, type: exponential},\
+      \ rate_fraction: 0.010782696456053889, streaming: false},\n    {adapter: context_relevance-2,\
+      \ arrival: {process: poisson}, id: client-context_relevance-2,\n      input_distribution:\
+      \ {params: {max: 2048, mean: 256, min: 16, std_dev: 64}, type: gaussian},\n\
+      \      model: ibm-granite/granite-3.3-2b-instruct, output_distribution: {params:\
+      \ {\n          mean: 128}, type: exponential}, rate_fraction: 0.009562781223961283,\
+      \ streaming: false},\n    {adapter: hallucination_detection-2, arrival: {process:\
+      \ poisson}, id: client-hallucination_detection-2,\n      input_distribution:\
+      \ {params: {max: 2048, mean: 256, min: 16, std_dev: 64}, type: gaussian},\n\
+      \      model: ibm-granite/granite-3.3-2b-instruct, output_distribution: {params:\
+      \ {\n          mean: 128}, type: exponential}, rate_fraction: 0.008556717521795097,\
+      \ streaming: false},\n    {adapter: query_rewrite-2, arrival: {process: poisson},\
+      \ id: client-query_rewrite-2,\n      input_distribution: {params: {max: 2048,\
+      \ mean: 256, min: 16, std_dev: 64}, type: gaussian},\n      model: ibm-granite/granite-3.3-2b-instruct,\
+      \ output_distribution: {params: {\n          mean: 128}, type: exponential},\
+      \ rate_fraction: 0.007715469522074421, streaming: false},\n    {adapter: answer_relevance_classifier-2,\
+      \ arrival: {process: poisson}, id: client-answer_relevance_classifier-2,\n \
+      \     input_distribution: {params: {max: 2048, mean: 256, min: 16, std_dev:\
+      \ 64}, type: gaussian},\n      model: ibm-granite/granite-3.3-2b-instruct, output_distribution:\
+      \ {params: {\n          mean: 128}, type: exponential}, rate_fraction: 0.007003566789179328,\
+      \ streaming: false},\n    {adapter: requirement_check-2, arrival: {process:\
+      \ poisson}, id: client-requirement_check-2,\n      input_distribution: {params:\
+      \ {max: 2048, mean: 256, min: 16, std_dev: 64}, type: gaussian},\n      model:\
+      \ ibm-granite/granite-3.3-2b-instruct, output_distribution: {params: {\n   \
+      \       mean: 128}, type: exponential}, rate_fraction: 0.006394783806860469,\
+      \ streaming: false},\n    {adapter: answer_relevance_rewriter-2, arrival: {process:\
+      \ poisson}, id: client-answer_relevance_rewriter-2,\n      input_distribution:\
+      \ {params: {max: 2048, mean: 256, min: 16, std_dev: 64}, type: gaussian},\n\
+      \      model: ibm-granite/granite-3.3-2b-instruct, output_distribution: {params:\
+      \ {\n          mean: 128}, type: exponential}, rate_fraction: 0.005869356526366339,\
+      \ streaming: false},\n    {adapter: answerability-3, arrival: {process: poisson},\
+      \ id: client-answerability-3,\n      input_distribution: {params: {max: 2048,\
+      \ mean: 256, min: 16, std_dev: 64}, type: gaussian},\n      model: ibm-granite/granite-3.3-2b-instruct,\
+      \ output_distribution: {params: {\n          mean: 128}, type: exponential},\
+      \ rate_fraction: 0.005412137817772023, streaming: false},\n    {adapter: citations-3,\
+      \ arrival: {process: poisson}, id: client-citations-3, input_distribution: {\n\
+      \        params: {max: 2048, mean: 256, min: 16, std_dev: 64}, type: gaussian},\
+      \ model: ibm-granite/granite-3.3-2b-instruct,\n      output_distribution: {params:\
+      \ {mean: 128}, type: exponential}, rate_fraction: 0.005011344456180773,\n  \
+      \    streaming: false}, {adapter: uncertainty-3, arrival: {process: poisson},\
+      \ id: client-uncertainty-3,\n      input_distribution: {params: {max: 2048,\
+      \ mean: 256, min: 16, std_dev: 64}, type: gaussian},\n      model: ibm-granite/granite-3.3-2b-instruct,\
+      \ output_distribution: {params: {\n          mean: 128}, type: exponential},\
+      \ rate_fraction: 0.004657687067006708, streaming: false},\n    {adapter: context_relevance-3,\
+      \ arrival: {process: poisson}, id: client-context_relevance-3,\n      input_distribution:\
+      \ {params: {max: 2048, mean: 256, min: 16, std_dev: 64}, type: gaussian},\n\
+      \      model: ibm-granite/granite-3.3-2b-instruct, output_distribution: {params:\
+      \ {\n          mean: 128}, type: exponential}, rate_fraction: 0.004343754055265149,\
+      \ streaming: false},\n    {adapter: hallucination_detection-3, arrival: {process:\
+      \ poisson}, id: client-hallucination_detection-3,\n      input_distribution:\
+      \ {params: {max: 2048, mean: 256, min: 16, std_dev: 64}, type: gaussian},\n\
+      \      model: ibm-granite/granite-3.3-2b-instruct, output_distribution: {params:\
+      \ {\n          mean: 128}, type: exponential}, rate_fraction: 0.004063567653162618,\
+      \ streaming: false},\n    {adapter: query_rewrite-3, arrival: {process: poisson},\
+      \ id: client-query_rewrite-3,\n      input_distribution: {params: {max: 2048,\
+      \ mean: 256, min: 16, std_dev: 64}, type: gaussian},\n      model: ibm-granite/granite-3.3-2b-instruct,\
+      \ output_distribution: {params: {\n          mean: 128}, type: exponential},\
+      \ rate_fraction: 0.003812258891775929, streaming: false},\n    {adapter: answer_relevance_classifier-3,\
+      \ arrival: {process: poisson}, id: client-answer_relevance_classifier-3,\n \
+      \     input_distribution: {params: {max: 2048, mean: 256, min: 16, std_dev:\
+      \ 64}, type: gaussian},\n      model: ibm-granite/granite-3.3-2b-instruct, output_distribution:\
+      \ {params: {\n          mean: 128}, type: exponential}, rate_fraction: 0.003585826196059816,\
+      \ streaming: false},\n    {adapter: requirement_check-3, arrival: {process:\
+      \ poisson}, id: client-requirement_check-3,\n      input_distribution: {params:\
+      \ {max: 2048, mean: 256, min: 16, std_dev: 64}, type: gaussian},\n      model:\
+      \ ibm-granite/granite-3.3-2b-instruct, output_distribution: {params: {\n   \
+      \       mean: 128}, type: exponential}, rate_fraction: 0.003380953725233208,\
+      \ streaming: false},\n    {adapter: answer_relevance_rewriter-3, arrival: {process:\
+      \ poisson}, id: client-answer_relevance_rewriter-3,\n      input_distribution:\
+      \ {params: {max: 2048, mean: 256, min: 16, std_dev: 64}, type: gaussian},\n\
+      \      model: ibm-granite/granite-3.3-2b-instruct, output_distribution: {params:\
+      \ {\n          mean: 128}, type: exponential}, rate_fraction: 0.0031948730240159667,\
+      \ streaming: false}],\n  num_requests: 18000, seed: 42, version: '2'}"
+  - name: benchmarkGitRepoUrl
+    value: https://github.com/kalantar/llm-d-benchmark.git
+  - name: benchmarkGitCommit
+    value: 74e26acd940fada6a7d0ff0f4b182055c20ac998
+  - name: blisGitRepoUrl
+    value: https://github.com/kalantar/inference-sim.git
+  - name: blisGitCommit
+    value: b79b592a8ccf26e1221ca184d7a4ae93689bd873
+  - name: replica
+    value: '1'
+  - name: observeArgs
+    value: --max-concurrency 10000 --timeout 1800 --prewarm-duration 60s --warmup-requests
+      50 --detectors composite --api-format completions --record-itl --model ibm-granite/granite-3.3-2b-instruct
+      --workload-spec /workspace/workload.yaml --dispatch-adapters --trace-header
+      /workspace/data/l2-9/baseline/granite-1_5-27adapter.workload-7_5-128/i1/trace_header.yaml
+      --trace-data /workspace/data/l2-9/baseline/granite-1_5-27adapter.workload-7_5-128/i1/trace_data.csv
+      --saturation-report /workspace/data/l2-9/baseline/granite-1_5-27adapter.workload-7_5-128/i1/saturation.json
+  pipelineRef:
+    name: sim2real
+  taskRunSpecs:
+  - pipelineTaskName: stream-epp-logs
+    timeout: 3h
+  - pipelineTaskName: stream-gpu-stats
+    timeout: 3h
+  - pipelineTaskName: stream-metrics
+    timeout: 3h
+  - pipelineTaskName: run-workload-blis-observe-binary
+    timeout: 3h
+  - pipelineTaskName: prepare-trace
+    timeout: 30m
+  taskRunTemplate:
+    serviceAccountName: helm-installer
+  timeouts:
+    pipeline: 4h
+  workspaces:
+  - name: data-storage
+    persistentVolumeClaim:
+      claimName: data-pvc
+  - name: source
+    persistentVolumeClaim:
+      claimName: source-pvc

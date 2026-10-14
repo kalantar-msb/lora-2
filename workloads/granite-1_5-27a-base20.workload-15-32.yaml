@@ -1,0 +1,536 @@
+# BLIS workload spec -- this bundle's granite deployment, 27 adapters.
+#
+# The 9 LoRA adapters of ibm-granite/rag-intrinsics-lib for
+# ibm-granite/granite-3.3-2b-instruct, each installed 3 times. Needs
+# ADAPTER_COPIES=3 in baselines/defaults/lora-serving.yaml, which installs every
+# adapter under its own name plus <adapter>-2 and <adapter>-3. vLLM treats each name
+# as a separate adapter (own GPU slot, own CPU-cache entry) although the weights match.
+#
+# Everything except the adapter set is copied from granite-9adapter.workload.yaml:
+# seed 42, aggregate_rate 6.0 req/s, num_requests 1500, Poisson
+# arrivals, gaussian(256,64) input, exponential(32) output. Each client's settings
+# are those of the original adapter it copies.
+#
+# rate_fraction is Zipf(alpha=1.5) over N=27: rank i gets i^-1.5, normalized to
+# sum to 1. Ranks are interleaved so every adapter keeps one copy at each popularity
+# level: ranks 1-9 are the 9 originals in the 9-adapter file's popularity order, ranks
+# 10-18 their -2 copies, ranks 19-27 their -3 copies. Recompute, do not hand-edit,
+# if N or alpha changes.
+#
+# BASE-MODEL TRAFFIC. A 28th client, client-base, sends requests with no `adapter`, so they
+# go to the base model (BLIS: an empty adapter means base-model-only). It has the same input
+# and output distributions as the adapter clients and takes rate_fraction 0.2. The 27 adapter
+# fractions are the Zipf values above scaled by 0.8, so the adapter traffic is unchanged
+# from granite-1_5-27adapter.workload-15-32.yaml: aggregate_rate is that file's rate / 0.8 and num_requests is scaled
+# by the same factor, so the cell runs as long. The rate in this file's name is the
+# adapter rate, not the total.
+#
+# Consumed by `blis observe --workload-spec --dispatch-adapters` (and `blis run`).
+version: '2'
+seed: 42
+aggregate_rate: 18.75
+num_requests: 11250
+clients:
+- id: client-answerability
+  model: ibm-granite/granite-3.3-2b-instruct
+  rate_fraction: 0.3585826196059816
+  streaming: false
+  arrival:
+    process: poisson
+  input_distribution:
+    type: gaussian
+    params:
+      mean: 256
+      std_dev: 64
+      min: 16
+      max: 2048
+  output_distribution:
+    type: exponential
+    params:
+      mean: 32
+  adapter: answerability
+- id: client-citations
+  model: ibm-granite/granite-3.3-2b-instruct
+  rate_fraction: 0.1267781009695129
+  streaming: false
+  arrival:
+    process: poisson
+  input_distribution:
+    type: gaussian
+    params:
+      mean: 256
+      std_dev: 64
+      min: 16
+      max: 2048
+  output_distribution:
+    type: exponential
+    params:
+      mean: 32
+  adapter: citations
+- id: client-uncertainty
+  model: ibm-granite/granite-3.3-2b-instruct
+  rate_fraction: 0.0690092573187449
+  streaming: false
+  arrival:
+    process: poisson
+  input_distribution:
+    type: gaussian
+    params:
+      mean: 256
+      std_dev: 64
+      min: 16
+      max: 2048
+  output_distribution:
+    type: exponential
+    params:
+      mean: 32
+  adapter: uncertainty
+- id: client-context_relevance
+  model: ibm-granite/granite-3.3-2b-instruct
+  rate_fraction: 0.0448228274507477
+  streaming: false
+  arrival:
+    process: poisson
+  input_distribution:
+    type: gaussian
+    params:
+      mean: 256
+      std_dev: 64
+      min: 16
+      max: 2048
+  output_distribution:
+    type: exponential
+    params:
+      mean: 32
+  adapter: context_relevance
+- id: client-hallucination_detection
+  model: ibm-granite/granite-3.3-2b-instruct
+  rate_fraction: 0.03207260451955695
+  streaming: false
+  arrival:
+    process: poisson
+  input_distribution:
+    type: gaussian
+    params:
+      mean: 256
+      std_dev: 64
+      min: 16
+      max: 2048
+  output_distribution:
+    type: exponential
+    params:
+      mean: 32
+  adapter: hallucination_detection
+- id: client-query_rewrite
+  model: ibm-granite/granite-3.3-2b-instruct
+  rate_fraction: 0.024398456907365945
+  streaming: false
+  arrival:
+    process: poisson
+  input_distribution:
+    type: gaussian
+    params:
+      mean: 256
+      std_dev: 64
+      min: 16
+      max: 2048
+  output_distribution:
+    type: exponential
+    params:
+      mean: 32
+  adapter: query_rewrite
+- id: client-answer_relevance_classifier
+  model: ibm-granite/granite-3.3-2b-instruct
+  rate_fraction: 0.019361641549949002
+  streaming: false
+  arrival:
+    process: poisson
+  input_distribution:
+    type: gaussian
+    params:
+      mean: 256
+      std_dev: 64
+      min: 16
+      max: 2048
+  output_distribution:
+    type: exponential
+    params:
+      mean: 32
+  adapter: answer_relevance_classifier
+- id: client-requirement_check
+  model: ibm-granite/granite-3.3-2b-instruct
+  rate_fraction: 0.01584726262118911
+  streaming: false
+  arrival:
+    process: poisson
+  input_distribution:
+    type: gaussian
+    params:
+      mean: 256
+      std_dev: 64
+      min: 16
+      max: 2048
+  output_distribution:
+    type: exponential
+    params:
+      mean: 32
+  adapter: requirement_check
+- id: client-answer_relevance_rewriter
+  model: ibm-granite/granite-3.3-2b-instruct
+  rate_fraction: 0.013280837763184504
+  streaming: false
+  arrival:
+    process: poisson
+  input_distribution:
+    type: gaussian
+    params:
+      mean: 256
+      std_dev: 64
+      min: 16
+      max: 2048
+  output_distribution:
+    type: exponential
+    params:
+      mean: 32
+  adapter: answer_relevance_rewriter
+- id: client-answerability-2
+  model: ibm-granite/granite-3.3-2b-instruct
+  rate_fraction: 0.011339378073046514
+  streaming: false
+  arrival:
+    process: poisson
+  input_distribution:
+    type: gaussian
+    params:
+      mean: 256
+      std_dev: 64
+      min: 16
+      max: 2048
+  output_distribution:
+    type: exponential
+    params:
+      mean: 32
+  adapter: answerability-2
+- id: client-citations-2
+  model: ibm-granite/granite-3.3-2b-instruct
+  rate_fraction: 0.009828793434510569
+  streaming: false
+  arrival:
+    process: poisson
+  input_distribution:
+    type: gaussian
+    params:
+      mean: 256
+      std_dev: 64
+      min: 16
+      max: 2048
+  output_distribution:
+    type: exponential
+    params:
+      mean: 32
+  adapter: citations-2
+- id: client-uncertainty-2
+  model: ibm-granite/granite-3.3-2b-instruct
+  rate_fraction: 0.008626157164843112
+  streaming: false
+  arrival:
+    process: poisson
+  input_distribution:
+    type: gaussian
+    params:
+      mean: 256
+      std_dev: 64
+      min: 16
+      max: 2048
+  output_distribution:
+    type: exponential
+    params:
+      mean: 32
+  adapter: uncertainty-2
+- id: client-context_relevance-2
+  model: ibm-granite/granite-3.3-2b-instruct
+  rate_fraction: 0.007650224979169027
+  streaming: false
+  arrival:
+    process: poisson
+  input_distribution:
+    type: gaussian
+    params:
+      mean: 256
+      std_dev: 64
+      min: 16
+      max: 2048
+  output_distribution:
+    type: exponential
+    params:
+      mean: 32
+  adapter: context_relevance-2
+- id: client-hallucination_detection-2
+  model: ibm-granite/granite-3.3-2b-instruct
+  rate_fraction: 0.006845374017436078
+  streaming: false
+  arrival:
+    process: poisson
+  input_distribution:
+    type: gaussian
+    params:
+      mean: 256
+      std_dev: 64
+      min: 16
+      max: 2048
+  output_distribution:
+    type: exponential
+    params:
+      mean: 32
+  adapter: hallucination_detection-2
+- id: client-query_rewrite-2
+  model: ibm-granite/granite-3.3-2b-instruct
+  rate_fraction: 0.006172375617659537
+  streaming: false
+  arrival:
+    process: poisson
+  input_distribution:
+    type: gaussian
+    params:
+      mean: 256
+      std_dev: 64
+      min: 16
+      max: 2048
+  output_distribution:
+    type: exponential
+    params:
+      mean: 32
+  adapter: query_rewrite-2
+- id: client-answer_relevance_classifier-2
+  model: ibm-granite/granite-3.3-2b-instruct
+  rate_fraction: 0.005602853431343462
+  streaming: false
+  arrival:
+    process: poisson
+  input_distribution:
+    type: gaussian
+    params:
+      mean: 256
+      std_dev: 64
+      min: 16
+      max: 2048
+  output_distribution:
+    type: exponential
+    params:
+      mean: 32
+  adapter: answer_relevance_classifier-2
+- id: client-requirement_check-2
+  model: ibm-granite/granite-3.3-2b-instruct
+  rate_fraction: 0.005115827045488376
+  streaming: false
+  arrival:
+    process: poisson
+  input_distribution:
+    type: gaussian
+    params:
+      mean: 256
+      std_dev: 64
+      min: 16
+      max: 2048
+  output_distribution:
+    type: exponential
+    params:
+      mean: 32
+  adapter: requirement_check-2
+- id: client-answer_relevance_rewriter-2
+  model: ibm-granite/granite-3.3-2b-instruct
+  rate_fraction: 0.004695485221093071
+  streaming: false
+  arrival:
+    process: poisson
+  input_distribution:
+    type: gaussian
+    params:
+      mean: 256
+      std_dev: 64
+      min: 16
+      max: 2048
+  output_distribution:
+    type: exponential
+    params:
+      mean: 32
+  adapter: answer_relevance_rewriter-2
+- id: client-answerability-3
+  model: ibm-granite/granite-3.3-2b-instruct
+  rate_fraction: 0.004329710254217619
+  streaming: false
+  arrival:
+    process: poisson
+  input_distribution:
+    type: gaussian
+    params:
+      mean: 256
+      std_dev: 64
+      min: 16
+      max: 2048
+  output_distribution:
+    type: exponential
+    params:
+      mean: 32
+  adapter: answerability-3
+- id: client-citations-3
+  model: ibm-granite/granite-3.3-2b-instruct
+  rate_fraction: 0.004009075564944619
+  streaming: false
+  arrival:
+    process: poisson
+  input_distribution:
+    type: gaussian
+    params:
+      mean: 256
+      std_dev: 64
+      min: 16
+      max: 2048
+  output_distribution:
+    type: exponential
+    params:
+      mean: 32
+  adapter: citations-3
+- id: client-uncertainty-3
+  model: ibm-granite/granite-3.3-2b-instruct
+  rate_fraction: 0.0037261496536053667
+  streaming: false
+  arrival:
+    process: poisson
+  input_distribution:
+    type: gaussian
+    params:
+      mean: 256
+      std_dev: 64
+      min: 16
+      max: 2048
+  output_distribution:
+    type: exponential
+    params:
+      mean: 32
+  adapter: uncertainty-3
+- id: client-context_relevance-3
+  model: ibm-granite/granite-3.3-2b-instruct
+  rate_fraction: 0.0034750032442121197
+  streaming: false
+  arrival:
+    process: poisson
+  input_distribution:
+    type: gaussian
+    params:
+      mean: 256
+      std_dev: 64
+      min: 16
+      max: 2048
+  output_distribution:
+    type: exponential
+    params:
+      mean: 32
+  adapter: context_relevance-3
+- id: client-hallucination_detection-3
+  model: ibm-granite/granite-3.3-2b-instruct
+  rate_fraction: 0.0032508541225300946
+  streaming: false
+  arrival:
+    process: poisson
+  input_distribution:
+    type: gaussian
+    params:
+      mean: 256
+      std_dev: 64
+      min: 16
+      max: 2048
+  output_distribution:
+    type: exponential
+    params:
+      mean: 32
+  adapter: hallucination_detection-3
+- id: client-query_rewrite-3
+  model: ibm-granite/granite-3.3-2b-instruct
+  rate_fraction: 0.003049807113420743
+  streaming: false
+  arrival:
+    process: poisson
+  input_distribution:
+    type: gaussian
+    params:
+      mean: 256
+      std_dev: 64
+      min: 16
+      max: 2048
+  output_distribution:
+    type: exponential
+    params:
+      mean: 32
+  adapter: query_rewrite-3
+- id: client-answer_relevance_classifier-3
+  model: ibm-granite/granite-3.3-2b-instruct
+  rate_fraction: 0.002868660956847853
+  streaming: false
+  arrival:
+    process: poisson
+  input_distribution:
+    type: gaussian
+    params:
+      mean: 256
+      std_dev: 64
+      min: 16
+      max: 2048
+  output_distribution:
+    type: exponential
+    params:
+      mean: 32
+  adapter: answer_relevance_classifier-3
+- id: client-requirement_check-3
+  model: ibm-granite/granite-3.3-2b-instruct
+  rate_fraction: 0.0027047629801865668
+  streaming: false
+  arrival:
+    process: poisson
+  input_distribution:
+    type: gaussian
+    params:
+      mean: 256
+      std_dev: 64
+      min: 16
+      max: 2048
+  output_distribution:
+    type: exponential
+    params:
+      mean: 32
+  adapter: requirement_check-3
+- id: client-answer_relevance_rewriter-3
+  model: ibm-granite/granite-3.3-2b-instruct
+  rate_fraction: 0.0025558984192127735
+  streaming: false
+  arrival:
+    process: poisson
+  input_distribution:
+    type: gaussian
+    params:
+      mean: 256
+      std_dev: 64
+      min: 16
+      max: 2048
+  output_distribution:
+    type: exponential
+    params:
+      mean: 32
+  adapter: answer_relevance_rewriter-3
+- id: client-base
+  model: ibm-granite/granite-3.3-2b-instruct
+  rate_fraction: 0.2
+  streaming: false
+  arrival:
+    process: poisson
+  input_distribution:
+    type: gaussian
+    params:
+      mean: 256
+      std_dev: 64
+      min: 16
+      max: 2048
+  output_distribution:
+    type: exponential
+    params:
+      mean: 32

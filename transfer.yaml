@@ -90,8 +90,18 @@ baselines:
     scenario: baselines/baseline.yaml
 
 workloads:
-  - workloads/granite-27adapter.workload.yaml
-  - workloads/granite-27adapter.workload-30.yaml
+  - workloads/granite-1_0-27adapter.workload-15-32.yaml
+  - workloads/granite-1_0-27adapter.workload-30-32.yaml
+  - workloads/granite-1_5-27adapter.workload-7_5-32.yaml
+  - workloads/granite-1_5-27adapter.workload-15-32.yaml
+  - workloads/granite-1_5-27adapter.workload-22_5-32.yaml
+  - workloads/granite-1_5-27adapter.workload-30-32.yaml
+  - workloads/granite-1_5-27adapter.workload-45-32.yaml
+  - workloads/granite-1_5-27adapter.workload-7_5-128.yaml
+  - workloads/granite-1_5-27adapter.workload-15-128.yaml
+  - workloads/granite-1_5-27a-base20.workload-15-32.yaml
+  - workloads/granite-1_5-27a-base20.workload-30-32.yaml
+  - workloads/granite-1_5-27a-base20.workload-15-128.yaml
 
 measurement: measurement.yaml
 
